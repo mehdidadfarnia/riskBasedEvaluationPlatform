@@ -1,5 +1,5 @@
 
-%% Archived pratice code for different parts that were in development in this Project's Experiment
+%% Archived practice code for different parts that were in development in this Project's experiments
 
 
  %% =============== Part X: No Fail Time Probability Distributions  ================
@@ -20,7 +20,7 @@ GoodLim=0;
 % Generate Visualizations for the Simulator
 MakePlots(Exp.Output,1);
 
-%%  Some testing done to create MfgAnalyzerV2 & MakePlots2  
+%%  Some testing done to create FunMfgSimulator_v02 & FunMakePlots_v02  
 BadShift = ProdVal3*ones(length(BadSet3)+1,NumNodes);
 for i=1:length(BadSet3)
     BadShift(i+1,BadSet3(1:i)) = BadLevel3;
@@ -65,7 +65,7 @@ pause;
 
 % Temporal Visualization Section:
 winsize = 15;   
-WinAvgs=meanfilt2(PartQuality,winsize);
+WinAvgs=FunMeanFilt_v02(PartQuality,winsize);
 figure(21);
 plot(PartOutTime,WinAvgs,'-','linewidth',1.5) 
 xlabel('Time (s)') %Cycles

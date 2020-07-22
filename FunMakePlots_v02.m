@@ -1,4 +1,4 @@
-function MakePlots2(Output, c)
+function FunMakePlots_v02(Output, c)
 
 %% Code to Make multiple Plots from different experiments in one run:
 % for c = 1:SimNum 

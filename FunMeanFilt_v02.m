@@ -1,4 +1,4 @@
-function xf = meanfilt2(x,win)
+function xf = FunMeanFilt_v02(x,win)
 %Mean Filter Data
 %  xf = meanfilt1(x,win)
 %Mean filter data (x) useing a window size (win)

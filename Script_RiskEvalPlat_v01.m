@@ -12,8 +12,8 @@
 %  Parts 4-7 go through risk evaluation of each algorithm
 %
 %  This script calls on the following functions:
-%       MfgAnalyzerV2.m (which in turn calls on meanFilt2.m)
-%       MakePlots2.m
+%       FunMfgSimulator_v02.m (which in turn calls on FunMeanFilt_v02.m)
+%       FunMakePlots_v02.m
 %       randfixedsum.m
 
 %% ============== Part 1: Initialization & Machining Paths ================
@@ -636,7 +636,7 @@ ExpNum=floor(allExpNums+1);
 SimNum=numel(Experiment)+1;
 
 % Manufacturing System Simulator
-[Exp3]=MfgAnalyzerV2(UniquePaths, NumParts3, ExpNum, ...
+[Exp3]=FunMfgSimulator_v02(UniquePaths, NumParts3, ExpNum, ...
      GoodLim, BadSet3, ProdVal3, BadLevel3, DegradeStart3)
 
 
@@ -645,7 +645,7 @@ SimNum=numel(Experiment)+1;
     % save(sprintf('ExperimentSet.mat'),'Experiment')
 
  % Generate Visualizations for the Simulator
- MakePlots2(Exp3.Output,3);
+ FunMakePlots_v02(Exp3.Output,3);
 
 %% =============== Part 4: Risk Eval: Genetic Algorithm  ================
 
@@ -817,7 +817,7 @@ PartQuality=Exp3.Output.PartQuality;
 PartPath=Exp3.Output.PartPath;
 %StartValue=Exp3.Output.PartPath;
 StartValue=0; %temporary, until I redo another example where I run 
-                % MfgAnalyzerV2.m all over again.
+                % FunMfgSimulator_v02.m all over again.
 Win = max(10,floor(NumParts3/100)); %Win=10 in the example with NumParts=500
 
 %Moving Window of:

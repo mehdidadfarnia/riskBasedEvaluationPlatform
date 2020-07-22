@@ -1,6 +1,6 @@
-function [Experiment] = MfgAnalyzerV2(UniquePaths, NumParts, ExpNum, GoodLim, BadSet, ProdVal, BadLevel, DegradeStart)
+function [Experiment] = FunMfgSimulator_v02(UniquePaths, NumParts, ExpNum, GoodLim, BadSet, ProdVal, BadLevel, DegradeStart)
 
-% Goal of this script is to analyze machine contribution to final quality
+% Goal of this function is to analyze machine contribution to final quality
 % of a product part, given that the products go through different paths of
 % machines before becoming a finished product. 
 
@@ -125,7 +125,7 @@ end %The ID indicates which one of the unique paths the part has gone through
 
 
 winsize = 15;   
-WinAvgs=meanfilt2(PartQuality,winsize);
+WinAvgs=FunMeanFilt_v02(PartQuality,winsize);
 
 %Another way to define the input:
 
