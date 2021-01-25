@@ -1,4 +1,4 @@
-%% Manufacturing Simulator Input Script, V6
+%% Manufacturing Simulator Input Script, V1
 %  Varying Machine Fail Times
 %
 %  Instructions
@@ -15,6 +15,8 @@
 %       FunMfgSimulator_v02.m (which in turn calls on FunMeanFilt_v02.m)
 %       FunMakePlots_v02.m
 %       randfixedsum.m
+
+
 
 %% ============== Part 1: Initialization & Machining Paths ================
 % Step 1: Initialization
@@ -308,14 +310,14 @@ numFailModesClassAy=1;
 aY= ones(numFailModesClassAy,length(tiempo));
 
 % Class B-operation Machines (Weibull-1 distribution):
-numFailModesClassBz=3;
+numFailModesClassBz=2;
 minaZ=0;
 maxaZ=1;
 aZ=randfixedsum(numFailModesClassBz,length(tiempo),1,minaZ,maxaZ); %Using a function from Mathworks File Exchange
 
 
 % Class C-operation Machines (Weibull-2 distribution):
-numFailModesClassCx=2;
+numFailModesClassCx=3;
 minaX=0;
 maxaX=1;
 aX=randfixedsum(numFailModesClassCx,length(tiempo),1,minaX,maxaX); %Using a function from Mathworks File Exchange
@@ -344,19 +346,19 @@ plot(tiempo,hX,'g--','DisplayName','Class C Machines - Weibull-2 Hazard Function
 
 for jj=1:numFailModesClassAy
     clr2=jj/numFailModesClassAy;
-    plot(tiempo,aY(jj).*hY,'LineStyle',':','Color',[clr2 0 0],'DisplayName',strcat('Class A - Exponential Ratio ', num2str(jj)));
+    plot(tiempo,mean(aY(jj,:)).*hY,'LineStyle',':','Color',[clr2 0 0],'DisplayName',strcat('Class A - Exponential Ratio ', num2str(jj)));
 end
 
 for ii=1:numFailModesClassBz
     clr1=ii/numFailModesClassBz;
-    plot(tiempo,aZ(ii,:).*hZ,'LineStyle',':','Color',[0 0 clr1],'DisplayName',strcat('Class B - Weibull-1 Ratio ', num2str(ii)));
+    plot(tiempo,mean(aZ(ii,:)).*hZ,'LineStyle',':','Color',[0 0 clr1],'DisplayName',strcat('Class B - Weibull-1 Ratio ', num2str(ii)));
 %     get(legend(gca),); % get legend from current axes.
 %    legend(strcat('Weibull Ratio', num2str(ii)))
 end
 
 for kk=1:numFailModesClassCx
     clr3=kk/numFailModesClassCx;
-    plot(tiempo,aX(kk).*hX,'LineStyle',':','Color',[0 clr3 0],'DisplayName',strcat('Class C - Weibull-2 Ratio ', num2str(kk)));
+    plot(tiempo,mean(aX(kk,:)).*hX,'LineStyle',':','Color',[0 clr3 0],'DisplayName',strcat('Class C - Weibull-2 Ratio ', num2str(kk)));
 end
 
 
@@ -446,8 +448,8 @@ legend('location','northeast')
     %component) + (cost of down-the-line consequences of the failure mode)
 
 CostsAy=unifrnd(50,200,[numFailModesClassAy,1]); %Class A, Exponential Machines, 1 failure mode
-CostsBz=unifrnd(150,600,[numFailModesClassBz,1]); %Class B, Weibull-1 Machines, 3 failure modes
-CostsCx=unifrnd(10,100,[numFailModesClassCx,1]); %Class C, Weibull-2 Machines, 2 failure modes
+CostsBz=unifrnd(150,600,[numFailModesClassBz,1]); %Class B, Weibull-1 Machines, 2 failure modes
+CostsCx=unifrnd(10,100,[numFailModesClassCx,1]); %Class C, Weibull-2 Machines, 3 failure modes
 
 figure(26);
 title('Severity');
@@ -481,8 +483,8 @@ figure(27);
 title('Occurrence, as Criticality(Cm)');
 hold on
 BetaYFun=BetaY.*ones(numFailModesClassAy,length(tiempo)); %1 by 2700
-BetaZFun=BetaZ.*ones(numFailModesClassBz,length(tiempo)); %3 by 2700
-BetaXFun=BetaX.*ones(numFailModesClassCx,length(tiempo)); %2 by 2700
+BetaZFun=BetaZ.*ones(numFailModesClassBz,length(tiempo)); %2 by 2700
+BetaXFun=BetaX.*ones(numFailModesClassCx,length(tiempo)); %3 by 2700
 
 hYintegFun=repmat(hYinteg,numFailModesClassAy,1);
 hZintegFun=repmat(hZinteg,numFailModesClassBz,1);
@@ -532,6 +534,8 @@ RiskBzFun = CostBzFun.*CriticalityBz;
 %Risk of failure modes of a Class C, Weibull-2 Machine
 RiskCxFun = CostCxFun.*CriticalityCx;
 
+
+
 for jj=1:numFailModesClassAy
     clr2=jj/numFailModesClassAy;
     plot(tiempo,RiskAyFun(jj,:),'LineStyle',':','Color',[clr2 0 0],'DisplayName', ...
@@ -572,7 +576,9 @@ hold off
 
 
 figure(30);
-SystemRisk=sum(ClassAidx)*ComponentRiskAy + sum(ClassBidx)*ComponentRiskBz + +sum(ClassCidx)*ComponentRiskCx;
+SystemRisk=sum(ClassAidx)*ComponentRiskAy + sum(ClassBidx)*ComponentRiskBz +sum(ClassCidx)*ComponentRiskCx;
+% ALT:
+%SystemRisk = 1*ComponentRiskAy + 2*ComponentRiskBz + 1*ComponentRiskCx;
 plot(tiempo,SystemRisk,'k--');
 hold on;
 title('Total System Risk (all the machines)');
@@ -585,8 +591,13 @@ NodePresencePreNorm=NodePresence/max(NodePresence);
 NodePresenceNorm=NodePresencePreNorm + (1-mean(NodePresencePreNorm));
 %NodePresenceNorm=(NodePresence-min(NodePresence))/(max(NodePresence)-min(NodePresence))
 
-WeightedSystemRisk=sum(NodePresenceNorm.*ClassAidx)*ComponentRiskAy + ...
-    sum(NodePresenceNorm.*ClassBidx)*ComponentRiskBz + sum(NodePresenceNorm.*ClassCidx)*ComponentRiskCx;
+ WeightedSystemRisk=sum(NodePresenceNorm.*ClassAidx)*ComponentRiskAy + ...
+     sum(NodePresenceNorm.*ClassBidx)*ComponentRiskBz + sum(NodePresenceNorm.*ClassCidx)*ComponentRiskCx;
+% ALT: 
+%WeightedSystemRisk=1*mean(nonzeros(NodePresenceNorm.*ClassAidx))*ComponentRiskAy + ...
+%    2*mean(nonzeros(NodePresenceNorm.*ClassBidx))*ComponentRiskBz + 1*mean(nonzeros(NodePresenceNorm.*ClassCidx))*ComponentRiskCx;
+
+
 plot(tiempo,WeightedSystemRisk,'LineStyle',':','Color',[0.25 0.25 0.25]);
 legend('System (Scenario) Risk','Weighted System Risk','location','northwest');
 hold off;
