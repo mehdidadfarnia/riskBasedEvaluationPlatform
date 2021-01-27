@@ -6,9 +6,6 @@
 clear all; clc; close all
 
 
-
-
-
 NumSims=1000;
 NumParts3=2700;  
 zwblB=1.3;

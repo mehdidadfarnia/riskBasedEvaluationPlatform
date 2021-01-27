@@ -23,16 +23,13 @@
 %clearvars -except Experiment;
 clear all; clc; close all
 
-NumSims=20;
+
 % Simulation/operation duration is 45 minutes (2700 seconds)
 NumParts3=2700;
 % Shape parameter, beta, unitless:
 zwblB=1.3; 
 % Shape parameter, beta, unitless:
 xwblB=4;
-
-CMSOngoingCosts=20000/60;
-CMSOneTimeCosts=0;
 
 
 % Step 2: Defining the machining paths
@@ -339,19 +336,6 @@ hXTot=(xwblB/xwblA)*(((tiempoCx)./xwblA).^(xwblB-1));
 hXinteg=cumtrapz(hXTot);
 hXinteg=hXinteg(xUsedShift+1:NumParts3+xUsedShift);
 
-
-
-figure(25);
-plot(tiempo,hYinteg,'r--','DisplayName','Cumulative Class A - Exponential Hazard Function')
-xlabel('Time (Minutes)');
-hold on;
-plot(tiempo,hZinteg,'b--','DisplayName','Cumulative Class B - Weibull-1 Hazard Function')
-hold on;
-plot(tiempo,hXinteg,'b--','DisplayName','Cumulative Class C - Weibull-2 Hazard Function')
-
-hold off;
-legend('location','northeast')
-
 % tiempoAy=1:NumParts3+yUsedShift;
 % hYTot=(1/theta).*ones(1,length(tiempoAy));
 % hYinteg=cumtrapz(hYTot);
@@ -362,6 +346,99 @@ legend('location','northeast')
 % hZinteg=cumtrapz(hZTot);
 % hZinteg=hZinteg(zUsedShift+1:NumParts3+zUsedShift);
 
+
+
+
+
+
+y=y-yUsedShift;
+z=z-zUsedShift;
+x=x-xUsedShift;
+allTimesTemp=[y z x];
+allTimesTemp(allTimesTemp<1)=randi(200,size(allTimesTemp(allTimesTemp<0)));
+
+y=allTimesTemp(1:length(y));
+z=allTimesTemp(1+length(y):length(y)+length(z));
+x=allTimesTemp(1+length(y)+length(z):end);
+
+
+% ============================
+% Step #4: If some fail times are outside simulation/operation duration
+% (consider 45 minutes or 2700 seconds), drop them
+
+% Vector of all machine failure times, regardless of distribution
+
+AllMachineFailTimes=[y,z,x]; %Order of Class A, Class B, Class C !!!!!!!!!!!!!!!!!!!!!!!!!!
+%AllMachineFailTimes=sort([y,z,x]);
+
+
+% Dropping fail times that do not fall within simulation
+DegradeStart3=AllMachineFailTimes(AllMachineFailTimes<=NumParts3);
+
+%Store fail times that happen after the simulation
+DegaradePostSim=AllMachineFailTimes(AllMachineFailTimes>NumParts3);
+
+
+
+% ============================
+% Step #5: Define Set of Bad Machines. 
+% Each column is a machine that has gone bad and its 
+% degradation start time 
+%BadSet3 = sort(randperm(NumNodes,length(DegradeStart3)));
+BadSet3 = find(ismember(AllMachineFailTimes,DegradeStart3));
+MachineFailureTimes=[BadSet3;DegradeStart3];
+
+% Also defining the set of Machines that didn't go bad during the
+% simulated duration of operation
+PostSimFailSet=1:length(AllMachineFailTimes);
+PostSimFailSet(BadSet3)=[];
+MachinePostSimFailTimes=[PostSimFailSet;DegaradePostSim];
+
+
+
+% ============================
+% Step #6: Differentiate machines based on their distributions (class with
+% exponential distribution, class with weibull distribution, and so on)
+
+MachinesFailsInSeq=[sortrows(MachineFailureTimes',2)', sortrows(MachinePostSimFailTimes',2)'];
+
+% Class A: Exponential Machines
+ClassAidxFailSeq=ismember(MachinesFailsInSeq(2,:),y);
+ClassAMachinesAndFailTimes=[sortrows(MachinesFailsInSeq(:,ClassAidxFailSeq)',1)';ClassAOpMach]; %Last row provides us with original machine ID #s
+ClassAidx=zeros(1,NumNodes);
+ClassAidx(MachinesFailsInSeq(1,ClassAidxFailSeq))=1;
+
+% Class B: Weibull Type-1 Machines
+ClassBidxFailSeq=ismember(MachinesFailsInSeq(2,:),z);
+ClassBMachinesAndFailTimes=[sortrows(MachinesFailsInSeq(:,ClassBidxFailSeq)',1)';ClassBOpMach]; %Last row provides us with original machine ID #s
+ClassBidx=zeros(1,NumNodes);
+ClassBidx(MachinesFailsInSeq(1,ClassBidxFailSeq))=1;
+
+% Class C: Weibull Type-2 Machines
+ClassCidxFailSeq=ismember(MachinesFailsInSeq(2,:),x);
+ClassCMachinesAndFailTimes=[sortrows(MachinesFailsInSeq(:,ClassCidxFailSeq)',1)';ClassCOpMach]; %Last row provides us with original machine ID #s
+ClassCidx=zeros(1,NumNodes);
+ClassCidx(MachinesFailsInSeq(1,ClassCidxFailSeq))=1;
+
+
+
+
+figure(25);
+plot(tiempo,hYinteg,'r--','DisplayName','Cumulative Class A - Exponential Hazard Function')
+title('Instantaneous Failure Rate & Their Ratios');
+xlabel('Time');
+hold on;
+plot(tiempo,hZinteg,'b--','DisplayName','Cumulative Class B - Weibull-1 Hazard Function')
+hold on;
+plot(tiempo,hXinteg,'b--','DisplayName','Cumulative Class C - Weibull-2 Hazard Function')
+
+hold off;
+legend('location','northeast')
+
+
+
+
+% ============================
 % Step #8: FMEA-Derived Values for Severity, also known as Costs:
 
 
@@ -382,13 +459,13 @@ hold on
 for jj=1:numFailModesClassAy
     clr2=jj/numFailModesClassAy;
     plot(tiempo,CostsAy(jj).*ones(1,length(tiempo)),'LineStyle',':','Color',[clr2 0 0],'DisplayName', ...
-        sprintf('Exponential Machine Failure Mode %i', jj));
+        strcat('Costs for Class A, Exponential Machine Failure Mode: ', num2str(jj)));
 end
 
 for ii=1:numFailModesClassBz
     clr1=ii/numFailModesClassBz;
     plot(tiempo,CostsBz(ii).*ones(1,length(tiempo)),'LineStyle','-','Color',[0 0 clr1],'DisplayName', ...
-        sprintf('Weibull-1 Machine Failure Mode %i', ii));
+        sprintf('Weibull-1 Machine Failure Mode %i', num2str(ii));
 end
 
 for kk=1:numFailModesClassCx
@@ -396,17 +473,16 @@ for kk=1:numFailModesClassCx
     plot(tiempo,CostsCx(kk).*ones(1,length(tiempo)),'LineStyle','--','Color',[0 clr3 0],'DisplayName', ...
         sprintf('Weibull-2 Machine Failure Mode %i', kk));
 end
-ylim([0 210]);
-xlim([0 NumParts3]);
-legend('location','northwest')
+legend('location','east')
 hold off
+
+
 
 % ============================
 % Step #9: Calculating Occurrence:
 
 figure(27);
-title('Failure Mode Occurrence, as Criticality(Cm)')
-xlabel('Time (Minutes)');
+title('Occurrence, as Criticality(Cm)');
 hold on
 BetaYFun=BetaY.*ones(numFailModesClassAy,length(tiempo)); %1 by 2700
 BetaZFun=BetaZ.*ones(numFailModesClassBz,length(tiempo)); %2 by 2700
@@ -438,14 +514,15 @@ end
 legend('location','east')
 hold off
 
+
+
+
 % ============================
 % Step #10: Calculating Risks:
-figure(28);
-title('Individual Failure Mode Risk')
-ylabel('Cost Risk (in Thousands of Dollars)');
-xlim([0 NumParts3]);
-xlabel('Time (Minutes)');
 
+
+figure(28);
+title('Failre Mode Risks = Severity * Occurrence');
 hold on
 CostAyFun=CostsAy.*ones(numFailModesClassAy,length(tiempo));
 CostBzFun=CostsBz.*ones(numFailModesClassBz,length(tiempo));
@@ -464,21 +541,23 @@ RiskCxFun = CostCxFun.*CriticalityCx;
 for jj=1:numFailModesClassAy
     clr2=jj/numFailModesClassAy;
     plot(tiempo,RiskAyFun(jj,:),'LineStyle',':','Color',[clr2 0 0],'DisplayName', ...
-        strcat('Class A, Exponential Machine Failure Mode: ', num2str(jj)));
+        strcat('Inherent Risk for Class A, Exponential Machine Failure Mode: ', num2str(jj)));
 end
 for ii=1:numFailModesClassBz
     clr1=ii/numFailModesClassBz;
     plot(tiempo,RiskBzFun(ii,:),'LineStyle','-','Color',[0 0 clr1],'DisplayName', ...
-        strcat('Class B, Weibull-1 Machine Failure Mode: ', num2str(ii)));
+        strcat('Inherent Risk for Class B, Weibull-1 Machine Failure Mode: ', num2str(ii)));
 end
 for kk=1:numFailModesClassCx
     clr3=kk/numFailModesClassCx;
     plot(tiempo,RiskCxFun(kk,:),'LineStyle','--','Color',[0 clr3 0],'DisplayName', ...
-        strcat('Class C, Weibull-2 Machine Failure Mode: ', num2str(kk)));
+        strcat('Inherent Risk for Class C, Weibull-2 Machine Failure Mode: ', num2str(kk)));
 end
 
-legend('location','northwest')
+legend('location','east')
 hold off
+
+
 
 ComponentRiskAy=sum(RiskAyFun,1);
 ComponentRiskBz=sum(RiskBzFun,1);
@@ -486,29 +565,26 @@ ComponentRiskCx=sum(RiskCxFun,1);
 
 figure(29);
 plot(tiempo,ComponentRiskAy,'LineStyle',':','Color',[1 0 0],'DisplayName', ...
-        'One Class A, Exponential Machine (Sum of Failure Mode Risks)');
+        'Inherent Risk for Class A, Exponential Machines (sum of failure modes)');
+title('Inherent Component (Machine) Risk');
 hold on;
 plot(tiempo,ComponentRiskBz,'LineStyle','-','Color',[0 0 1],'DisplayName', ...
-    'One Class B, Weibull-1 Machines (Sum of Failure Mode Risks)');
+    'Inherent Risk for Class B, Weibull-1 Machines (sum of failure modes)');
 hold on;
 plot(tiempo,ComponentRiskCx,'LineStyle','--','Color',[0 1 0],'DisplayName', ...
-    'One Class C, Weibull-2 Machines (Sum of Failure Mode Risks)');
-legend('location','northwest')
-title('Aggregated Cost Risks')
-xlabel('Minutes');
-ylabel('Cost Risk (in Thousands of Dollars)');
-xlim([0 NumParts3]);
+    'Inherent Risk for Class C, Weibull-2 Machines (sum of failure modes)');
+legend('location','east')
 hold off
 
+
 figure(30);
-SystemRisk=length(ClassAOpMach)*ComponentRiskAy + length(ClassBOpMach)*ComponentRiskBz +length(ClassCOpMach)*ComponentRiskCx;
+SystemRisk=sum(ClassAidx)*ComponentRiskAy + sum(ClassBidx)*ComponentRiskBz +sum(ClassCidx)*ComponentRiskCx;
 % ALT:
 %SystemRisk = 1*ComponentRiskAy + 2*ComponentRiskBz + 1*ComponentRiskCx;
 plot(tiempo,SystemRisk,'k--');
 hold on;
-title('Total System Risk (All Machines Considered)');
-legend('location','east')
-
+title('Total System Risk (all the machines)');
+%legend('location','east')
 NodePresence=nan(1,NumNodes);
 for ii=1:NumNodes
     NodePresence(1,ii)=length(find(horzcat(UniquePaths{:})==ii));
@@ -517,11 +593,8 @@ NodePresencePreNorm=NodePresence/max(NodePresence);
 NodePresenceNorm=NodePresencePreNorm + (1-mean(NodePresencePreNorm));
 %NodePresenceNorm=(NodePresence-min(NodePresence))/(max(NodePresence)-min(NodePresence))
 
-a=zeros(1,10);a(ClassAOpMach)=1;
-b=zeros(1,10);b(ClassBOpMach)=1;
-c=zeros(1,10);c(ClassCOpMach)=1;
- WeightedSystemRisk=sum(NodePresenceNorm.*a)*ComponentRiskAy + ...
-     sum(NodePresenceNorm.*b)*ComponentRiskBz + sum(NodePresenceNorm.*c)*ComponentRiskCx;
+ WeightedSystemRisk=sum(NodePresenceNorm.*ClassAidx)*ComponentRiskAy + ...
+     sum(NodePresenceNorm.*ClassBidx)*ComponentRiskBz + sum(NodePresenceNorm.*ClassCidx)*ComponentRiskCx;
 % ALT: 
 %WeightedSystemRisk=1*mean(nonzeros(NodePresenceNorm.*ClassAidx))*ComponentRiskAy + ...
 %    2*mean(nonzeros(NodePresenceNorm.*ClassBidx))*ComponentRiskBz + 1*mean(nonzeros(NodePresenceNorm.*ClassCidx))*ComponentRiskCx;
@@ -530,6 +603,9 @@ c=zeros(1,10);c(ClassCOpMach)=1;
 plot(tiempo,WeightedSystemRisk,'LineStyle',':','Color',[0.25 0.25 0.25]);
 legend('System (Scenario) Risk','Weighted System Risk','location','northwest');
 hold off;
+
+
+
 
 PathsMap = zeros(length(UniquePaths),NumNodes); 
 for upi = 1:length(UniquePaths)
@@ -540,9 +616,9 @@ PathRisk=zeros(length(UniquePaths),length(SystemRisk));
 
 
 for kk=1:length(UniquePaths)
-    PathSetAy=sum(PathsMap(kk,:).*a);
-    PathSetBz=sum(PathsMap(kk,:).*b);
-    PathSetCx=sum(PathsMap(kk,:).*c);
+    PathSetAy=sum(PathsMap(kk,:).*ClassAidx);
+    PathSetBz=sum(PathsMap(kk,:).*ClassBidx);
+    PathSetCx=sum(PathsMap(kk,:).*ClassCidx);
     PathRisk(kk,:)=PathSetAy*ComponentRiskAy+PathSetBz*ComponentRiskBz +PathSetCx*ComponentRiskCx ;
 end
 PathNames = {};
@@ -560,542 +636,9 @@ legend(PathNames{:},'location','eastoutside')
 hold off
 
 
-
-
-
-
-%% actual failure times for different simulations
-% y has fail times for Exponential Machines
-% z has fail times for Weibull Machines
-% Let us assume all the Weibull Machines have already been used for 4000 time units:
-%close all; 
-y=nan(NumSims,length(ClassAOpMach));
-z=nan(NumSims,length(ClassBOpMach));
-x=nan(NumSims,length(ClassCOpMach));
-
-for qq=1:NumSims
-    y(qq,:)=floor(sort(exprnd(theta*ones(1,length(ClassAOpMach)))));
-    z(qq,:)=floor(sort(wblrnd(zwblA,zwblB,[1,length(ClassBOpMach)]))); 
-    x(qq,:)=floor(sort(wblrnd(xwblA,xwblB,[1,length(ClassCOpMach)]))); 
-end
-
-y=y-yUsedShift;
-z=z-zUsedShift;
-x=x-xUsedShift;
-allTimesTemp=[y z x];
-allTimesTemp(allTimesTemp<1)=randi(1,size(allTimesTemp(allTimesTemp<1)));
-
-yAll=allTimesTemp(:,1:length(ClassAOpMach));
-zAll=allTimesTemp(:,1+length(ClassAOpMach):length(ClassAOpMach)+length(ClassBOpMach));
-xAll=allTimesTemp(:,1+length(ClassAOpMach)+length(ClassBOpMach):end);
-
-
-% ============================
-% Step #4: If some fail times are outside simulation/operation duration
-% (consider 45 minutes or 2700 seconds), drop them
-
-% Vector of all machine failure times, regardless of distribution
-
-AllMachineFailTimesAll=[yAll,zAll,xAll]; %Order of Class A, Class B, Class C 
-
-PCPostCMSRisk=nan(NumParts3,NumSims);
-PCNewValue_Alg=nan(NumParts3,NumSims);
-PCNoAlg_RISK_scenario=nan(NumParts3,NumSims);
-NoAlgoRiskAy=nan(NumParts3,NumSims);
-NoAlgoRiskBz=nan(NumParts3,NumSims);
-NoAlgoRiskCx=nan(NumParts3,NumSims);
-
-tpProdCont=nan(NumParts3,NumSims);
-tnProdCont=nan(NumParts3,NumSims);
-fpProdCont=nan(NumParts3,NumSims);
-fnProdCont=nan(NumParts3,NumSims);
-for vv = 1:NumSims
-    AllMachineFailTimes=AllMachineFailTimesAll(vv,:);
-    while length(AllMachineFailTimes) ~= length(unique(AllMachineFailTimes))
-        [~,ind]=unique(AllMachineFailTimes); ind=ind';
-        duplicateInd=setdiff(1:length(AllMachineFailTimes),ind);
-        AllMachineFailTimes(duplicateInd)=AllMachineFailTimes(duplicateInd)+1;
-    end
-    y=AllMachineFailTimes(1:length(ClassAOpMach));
-    z=AllMachineFailTimes(1+length(ClassAOpMach):length(ClassAOpMach)+length(ClassBOpMach));
-    x=AllMachineFailTimes(1+length(ClassAOpMach)+length(ClassBOpMach):end);
-
-    % Dropping fail times that do not fall within simulation
-    DegradeStart3=AllMachineFailTimes(AllMachineFailTimes<=NumParts3);
-
-    %Store fail times that happen after the simulation
-    DegaradePostSim=AllMachineFailTimes(AllMachineFailTimes>NumParts3);
-    
-    % ============================
-    % Step #5: Define Set of Bad Machines. 
-    % Each column is a machine that has gone bad and its 
-    % degradation start time 
-    %BadSet3 = sort(randperm(NumNodes,length(DegradeStart3)));
-    BadSet3 = find(ismember(AllMachineFailTimes,DegradeStart3));
-    MachineFailureTimes=[BadSet3;DegradeStart3];
-
-    % Also defining the set of Machines that didn't go bad during the
-    % simulated duration of operation
-    PostSimFailSet=1:length(AllMachineFailTimes);
-    PostSimFailSet(BadSet3)=[];
-    MachinePostSimFailTimes=[PostSimFailSet;DegaradePostSim];
-    
-    % ============================
-    % Step #6: Differentiate machines based on their distributions (class with
-    % exponential distribution, class with weibull distribution, and so on)
-
-    MachinesFailsInSeq=[sortrows(MachineFailureTimes',2)', sortrows(MachinePostSimFailTimes',2)'];
-
-    % Class A: Exponential Machines
-    ClassAidxFailSeq=ismember(MachinesFailsInSeq(2,:),y);
-    ClassAMachinesAndFailTimes=[sortrows(MachinesFailsInSeq(:,ClassAidxFailSeq)',1)';ClassAOpMach]; %Last row provides us with original machine ID #s
-    ClassAidx=zeros(1,NumNodes);
-    ClassAidx(MachinesFailsInSeq(1,ClassAidxFailSeq))=1;
-
-    % Class B: Weibull Type-1 Machines
-    ClassBidxFailSeq=ismember(MachinesFailsInSeq(2,:),z);
-    ClassBMachinesAndFailTimes=[sortrows(MachinesFailsInSeq(:,ClassBidxFailSeq)',1)';ClassBOpMach]; %Last row provides us with original machine ID #s
-    ClassBidx=zeros(1,NumNodes);
-    ClassBidx(MachinesFailsInSeq(1,ClassBidxFailSeq))=1;
-
-    % Class C: Weibull Type-2 Machines
-    ClassCidxFailSeq=ismember(MachinesFailsInSeq(2,:),x);
-    ClassCMachinesAndFailTimes=[sortrows(MachinesFailsInSeq(:,ClassCidxFailSeq)',1)';ClassCOpMach]; %Last row provides us with original machine ID #s
-    ClassCidx=zeros(1,NumNodes);
-    ClassCidx(MachinesFailsInSeq(1,ClassCidxFailSeq))=1;
-
-    %sort(AllMachineFailTimes)
-
-    MFT=[BadSet3; DegradeStart3];
-    BadSet4=nan(NumParts3,NumNodes);
-    BadSet4(sub2ind(size(BadSet4),MFT(2,:),MFT(1,:)))=MFT(1,:);
-    [r,c]=find(~isnan(BadSet4));
-    for dd=1:length(r)
-        BadSet4(r(dd):end,c(dd))=BadSet4(r(dd),c(dd));
-    end
-    BadSet4Baseline=BadSet4;
-    GoodSet=1:10;
-    GoodSet(BadSet3)=[];
-
-    GoodSet4=ones(NumParts3,NumNodes);
-    GoodSet4(~isnan(BadSet4))=nan;
-    GoodSet4=GoodSet4.*(1:NumNodes);
-
-
-    %StartValue=Exp3.Output.PartPath;
-    StartValue=0; %temporary, until I redo another example where I run 
-                    % FunMfgSimulator_v02.m all over again.
-
-    BadShift = ProdVal3*ones(length(BadSet3)+1,NumNodes);
-    for i=1:length(BadSet3)
-        BadShift(i+1,BadSet3(1:i)) = BadLevel3;
-    end
-
-    for pp = 1:NumParts3
-        PartPath{pp} = UniquePaths{randi(length(UniquePaths))}; 
-        if (isempty(DegradeStart3)==1)
-            Shift=BadShift(1,:);
-            PartQuality(pp) = StartValue + sum(Shift(PartPath{pp}))-rand*.01;
-
-        elseif pp <= DegradeStart3(1)
-            Shift=BadShift(1,:);
-            PartQuality(pp) = StartValue + sum(Shift(PartPath{pp}))-rand*.01;
-        else
-            ShiftFinder=find(DegradeStart3<pp);
-            ShiftFinder=ShiftFinder(end);
-            Shift=BadShift(ShiftFinder+1,:);
-            PartQuality(pp) = StartValue + sum(Shift(PartPath{pp}))-rand*.01;
-
-        end
-        %Parts output time: they come out pretty uniformly, per unit of time
-        %given some small randomness
-        PartOutTime(pp) = pp+rand*.2;
-    end           
-
-    %Sort Parts by Production Time
-    [PartOutTime, ti] = sort(PartOutTime); %ti is the index of sorted parts
-    %Using the same sort index, here we make sure the part quality and path 
-    %values refer to the same product:
-    PartQuality = PartQuality(ti); 
-    PartPath = PartPath(ti);
-
-
-    Win = max(10,floor(NumParts3/100)); %Win=10 in the example with NumParts=500
-
-    %Moving Window of:
-    PWN = nan(Win,NumNodes);%Part Quality With Node
-    PWON = nan(Win,NumNodes);%Part Qualty Without Node
-    %Average of Windows
-    QWithN = nan(NumParts3,NumNodes);%Average Quality With Node
-    QWithoutN = nan(NumParts3,NumNodes);%Average Quality Without Node
-
-    ProdContThresh=-0.1;
-
-    ProdCont=nan(NumParts3,NumNodes);
-    ProdContNorm=nan(NumParts3,NumNodes);
-    
-%     tpProdCont=nan(NumParts3,1);
-%     tnProdCont=nan(NumParts3,1);
-%     fpProdCont=nan(NumParts3,1);
-%     fnProdCont=nan(NumParts3,1);
-    
-    fprProdCont=nan(NumParts3,1);
-    tprProdCont=nan(NumParts3,1);
-    fnrProdCont=nan(NumParts3,1);
-
-    tpAy_PC=nan(NumParts3,1);
-    tpBz_PC=nan(NumParts3,1);
-    tpCx_PC=nan(NumParts3,1);
-
-    fpAy_PC=nan(NumParts3,1);
-    fpBz_PC=nan(NumParts3,1);
-    fpCx_PC=nan(NumParts3,1);
-
-    fnAy_PC=nan(NumParts3,1);
-    fnBz_PC=nan(NumParts3,1);
-    fnCx_PC=nan(NumParts3,1);
-
-    tnAy_PC=nan(NumParts3,1);
-    tnBz_PC=nan(NumParts3,1);
-    tnCx_PC=nan(NumParts3,1);
-
-    PartQualityUB = StartValue+(length(UniquePaths{1})*ProdVal3);
-    if length(BadSet3)<length(UniquePaths{1})
-        PartQualityLB = StartValue + (length(BadSet3)*BadLevel3) + ((length(UniquePaths{1}) - length(BadSet3))*ProdVal3);
-    else
-        PartQualityLB = StartValue+length(UniquePaths{1})*BadLevel3;
-    end
-    ProdContRange = PartQualityUB - PartQualityLB;
-
-    NodeNames={};
-    for Ni = 1:NumNodes  
-        NodeNames{Ni} = sprintf('Node #%i',Ni);
-    end
-
-    CostCheckAy=20;
-   % CostFixAy=4;
-   % CostMissAy=16;
-
-    PCCorrMaintAy=nan(NumParts3,1);
-    PCContFailAy= nan(NumParts3,1);
-    PCUnnecessaryMaintAy=nan(NumParts3,1);
-
-        % For the weibull-1 machines:
-    CostCheckBz=30;
-    %CostFixBz=8;
-    %CostMissBz=12;
-
-    PCCorrMaintBz=nan(NumParts3,1);
-    PCContFailBz= nan(NumParts3,1);
-    PCUnnecessaryMaintBz=nan(NumParts3,1);
-
-        % For the weibull-2 machines:
-    CostCheckCx=45;
-    %CostFixCx=10;
-   % CostMissCx=20;
-    PCCorrMaintCx=nan(NumParts3,1);
-    PCContFailCx= nan(NumParts3,1);
-    PCUnnecessaryMaintCx=nan(NumParts3,1);
-
-
-    PCPostAlg_RISK_scenario=nan(NumParts3,1);
-    PCValue_Alg=nan(NumParts3,1);
-    PCAlgorithmsRisk=nan(NumParts3,1);
-
-    PostAlgoRiskAy=nan(NumParts3,1);
-    PostAlgoRiskBz=nan(NumParts3,1);
-    PostAlgoRiskCx=nan(NumParts3,1);
-
-    for pp = 1:NumParts3
-        %Place Part Quality in Appropriate Windowed Bins
-        for Ni = 1:NumNodes
-            %If Part Passed this Node (machining stage)
-            if any(PartPath{pp}==Ni)
-                PWN(:,Ni) = [PWN(2:end,Ni); PartQuality(pp)]; %moving window, row is the window of (10) products and column is each machine/node
-            else
-                %If Part Did Not Pass Through This Node
-                PWON(:,Ni) = [PWON(2:end,Ni); PartQuality(pp)];
-            end
-        end
-        QWithN(pp,:)   = nanmean(PWN);  %Average of each PWN column; each column characterizes a machine/node
-        QWithoutN(pp,:)= nanmean(PWON); %Average of each PWON column; each column characterizes a machine/node
-        ProdCont(pp,:)=QWithN(pp,:)-QWithoutN(pp,:);
-        ProdContNorm(pp,:)=ProdCont(pp,:)/abs(ProdContRange);
-        %plot(1:pp,ProdContNorm(1:pp,:))
-        %pause(2);
-        %clf;
-
-        BS4=BadSet4(pp,~isnan(BadSet4(pp,:)));
-        GS4=GoodSet4(pp,~isnan(GoodSet4(pp,:)));
-        tpProdCont(pp,vv)=sum(ProdContNorm(pp,BS4)<=ProdContThresh);
-        fpProdCont(pp,vv)=sum(ProdContNorm(pp,GS4)<=ProdContThresh);
-        fnProdCont(pp,vv)=sum(ProdContNorm(pp,BS4)>ProdContThresh);
-        tnProdCont(pp,vv)=sum(ProdContNorm(pp,GS4)>ProdContThresh);
-
-        fprProdCont(pp)=fpProdCont(pp,vv)/(tnProdCont(pp,vv)+fpProdCont(pp,vv));
-        tprProdCont(pp)=tpProdCont(pp,vv)/(tpProdCont(pp,vv)+fnProdCont(pp,vv));
-        fnrProdCont(pp)=1-tprProdCont(pp);
-
-        tpAy_PC(pp)=sum((ProdContNorm(pp,BS4)<=ProdContThresh).*ClassAidx(BS4));
-        tpBz_PC(pp)=sum((ProdContNorm(pp,BS4)<=ProdContThresh).*ClassBidx(BS4));
-        tpCx_PC(pp)=sum((ProdContNorm(pp,BS4)<=ProdContThresh).*ClassCidx(BS4));
-
-        fpAy_PC(pp)=sum((ProdContNorm(pp,GS4)<=ProdContThresh).*ClassAidx(GS4));
-        fpBz_PC(pp)=sum((ProdContNorm(pp,GS4)<=ProdContThresh).*ClassBidx(GS4));
-        fpCx_PC(pp)=sum((ProdContNorm(pp,GS4)<=ProdContThresh).*ClassCidx(GS4));
-
-        fnAy_PC(pp)=sum((ProdContNorm(pp,BS4)>ProdContThresh).*ClassAidx(BS4));
-        fnBz_PC(pp)=sum((ProdContNorm(pp,BS4)>ProdContThresh).*ClassBidx(BS4));
-        fnCx_PC(pp)=sum((ProdContNorm(pp,BS4)>ProdContThresh).*ClassCidx(BS4));
-
-        tnAy_PC(pp)=sum((ProdContNorm(pp,GS4)>ProdContThresh).*ClassAidx(GS4));
-        tnBz_PC(pp)=sum((ProdContNorm(pp,GS4)>ProdContThresh).*ClassBidx(GS4));
-        tnCx_PC(pp)=sum((ProdContNorm(pp,GS4)>ProdContThresh).*ClassCidx(GS4));
-
-
-
-
-
-        % For the exponential machines:
-        NoAlgoRiskAy(pp,vv)=sum(~isnan(BadSet4Baseline(pp,:)).*ClassAidx)*sum(aY(:,pp).*CostAyFun(:,pp));
-                % For the weibull-1 machines:
-        NoAlgoRiskBz(pp,vv)=sum(~isnan(BadSet4Baseline(pp,:)).*ClassBidx)*sum(aZ(:,pp).*CostBzFun(:,pp));
-                % For the weibull-2 machines:
-        NoAlgoRiskCx(pp,vv)=sum(~isnan(BadSet4Baseline(pp,:)).*ClassCidx)*sum(aX(:,pp).*CostCxFun(:,pp));
-
-        tpCoeff=0.3; %Cost of check and fix (repair)
-        fnCoeff=1.3; %Cost Miss
-    % For the exponential machines:
-        PostAlgoRiskAy(pp)=...%(tnAy_PC(pp)+fpAy_PC(pp))*sum(aY(:,pp).*CostAyFun(:,pp))...
-            tpAy_PC(pp)*tpCoeff*sum(aY(:,pp).*CostAyFun(:,pp))...
-            + fpAy_PC(pp)*CostCheckAy...
-            + fnAy_PC(pp)*fnCoeff*sum(aY(:,pp).*CostAyFun(:,pp));
-            %+ tpAy_PC(pp)*(CostCheckAy+CostFixAy) ...
-            %+ fnAy_PC(pp)*CostMissAy ...
-
-                % For the weibull-1 machines:
-        PostAlgoRiskBz(pp)=...%(tnBz_PC(pp)+fpBz_PC(pp))*sum(aZ(:,pp).*CostBzFun(:,pp))...
-            tpBz_PC(pp)*tpCoeff*sum(aZ(:,pp).*CostBzFun(:,pp))...
-            + fpBz_PC(pp)*CostCheckBz...
-            + fnBz_PC(pp)*fnCoeff*sum(aZ(:,pp).*CostBzFun(:,pp));
-        % + fnBz_PC(pp)*CostMissBz ...
-        %+ tpBz_PC(pp)*(CostCheckBz+CostFixBz) ...
-
-                % For the weibull-2 machines:
-        PostAlgoRiskCx(pp)=...%(tnCx_PC(pp)+fpCx_PC(pp))*sum(aX(:,pp).*CostCxFun(:,pp))...
-            tpCx_PC(pp)*tpCoeff* sum(aX(:,pp).*CostCxFun(:,pp))...
-            + fpCx_PC(pp)*CostCheckCx ...
-            + fnCx_PC(pp)*fnCoeff*sum(aX(:,pp).*CostCxFun(:,pp));
-           % + tpCx_PC(pp)*(CostCheckCx+CostFixCx) ...
-           % + fnCx_PC(pp)*CostMissCx ...
-
-   
-        PCPostCMSRisk(pp,vv)=PostAlgoRiskAy(pp) + PostAlgoRiskBz(pp) + PostAlgoRiskCx(pp);
-        %PCNoAlg_RISK_scenario = SystemRisk(pp); % inherent system risk
-        PCNoAlg_RISK_scenario(pp,vv) = NoAlgoRiskAy(pp,vv) + NoAlgoRiskBz(pp,vv) + NoAlgoRiskCx(pp,vv);
-        PCNewValue_Alg(pp,vv) = PCNoAlg_RISK_scenario(pp,vv) - PCPostCMSRisk(pp,vv);
-
-        if tpProdCont(pp,vv)>0
-           RepairedMachines=nonzeros((ProdContNorm(pp,BS4)<=ProdContThresh).*BS4)';
-           for ww=1:length(RepairedMachines)
-               RepairedIndx=zeros(1,NumNodes);
-               RepairedIndx(RepairedMachines(ww))=1;
-               RepairedNewTime=sum(RepairedIndx.*ClassAidx)*floor(sort(exprnd(theta*ones(1,1))))...
-                   + sum(RepairedIndx.*ClassBidx)*floor(sort(wblrnd(zwblA,zwblB,[1,1])))...
-                   + sum(RepairedIndx.*ClassCidx)*floor(sort(wblrnd(xwblA,xwblB,[1,1])));
-               DegradeStart3(BadSet3==RepairedMachines(ww))=DegradeStart3(BadSet3==RepairedMachines(ww)) + RepairedNewTime;
- %             BadSet3(BadSet3==RepairedMachines(ww))=[]; 
-
- 
-               BadSet4(pp+1:end,RepairedMachines(ww))=nan;
-               if DegradeStart3(BadSet3==RepairedMachines(ww)) < NumParts3
-                   BadSet4(DegradeStart3(BadSet3==RepairedMachines(ww)):end,RepairedMachines(ww))=RepairedMachines(ww);
-               end
-           end
-            
-            GoodSet=1:10;
-            GoodSet(BadSet3)=[];
-
-            GoodSet4=ones(NumParts3,NumNodes);
-            GoodSet4(~isnan(BadSet4))=nan;
-            GoodSet4=GoodSet4.*(1:NumNodes);
-
-
-            BadShift = ProdVal3*ones(length(BadSet3)+1,NumNodes);
-            for i=1:length(BadSet3)
-                BadShift(i+1,BadSet3(1:i)) = BadLevel3;
-            end
-
-            for zz = pp+1:NumParts3
-                PartPath{zz} = UniquePaths{randi(length(UniquePaths))}; 
-                if (isempty(DegradeStart3)==1)
-                    Shift=BadShift(1,:);
-                    PartQuality(zz) = StartValue + sum(Shift(PartPath{zz}))-rand*.01;
-
-                elseif zz <= min(DegradeStart3)
-                    Shift=BadShift(1,:);
-                    PartQuality(zz) = StartValue + sum(Shift(PartPath{zz}))-rand*.01;
-                else
-                    ShiftFinder=find(DegradeStart3<zz);
-                    ShiftFinder=ShiftFinder(end);
-                    Shift=BadShift(ShiftFinder+1,:);
-                    PartQuality(zz) = StartValue + sum(Shift(PartPath{zz}))-rand*.01;
-
-                end
-                %Parts output time: they come out pretty uniformly, per unit of time
-                %given some small randomness
-                PartOutTime(zz) = zz+rand*.2;
-            end           
-
-            %Sort Parts by Production Time
-            [PartOutTime, ti] = sort(PartOutTime); %ti is the index of sorted parts
-            %Using the same sort index, here we make sure the part quality and path 
-            %values refer to the same product:
-            PartQuality = PartQuality(ti); 
-            PartPath = PartPath(ti);
-
-       end
-
-        
-    end
-
-end
-
-   
-NoAlgoRiskAyCompAVG=mean(NoAlgoRiskAy,2)/sum(ClassAidx);
-NoAlgoRiskBzCompAVG=mean(NoAlgoRiskBz,2)/sum(ClassBidx);
-NoAlgoRiskCxCompAVG=mean(NoAlgoRiskCx,2)/sum(ClassCidx);
-
-
-PCPostCMSRiskSTD=std(PCPostCMSRisk,0,2);
-PCPostCMSRiskAVG=mean(PCPostCMSRisk,2);
-
-PCNoAlg_RISK_scenarioSTD=std(PCNoAlg_RISK_scenario,0,2);
-PCNoAlg_RISK_scenarioAVG=mean(PCNoAlg_RISK_scenario,2);
-
-% PCNewValue_AlgSTD=std(PCNewValue_Alg,0,2);
-PCNewValue_AlgAVG=mean(PCNewValue_Alg,2);
-
-
-% ROI Stuff Here
-
-PCNewValue_AlgAVGUpd=PCNewValue_AlgAVG-CMSOngoingCosts-CMSOneTimeCosts;
-
-upperPCPostCMSRiskAVGSTD=PCPostCMSRiskAVG+PCPostCMSRiskSTD;
-lowerPCPostCMSRiskAVGSTD=PCPostCMSRiskAVG-PCPostCMSRiskSTD;
-PCNoAlg_RISK_scenarioUpper=PCNoAlg_RISK_scenarioAVG + PCNoAlg_RISK_scenarioSTD;
-PCNoAlg_RISK_scenarioLower=PCNoAlg_RISK_scenarioAVG - PCNoAlg_RISK_scenarioSTD;
-
-PCNewValue_AlgSTD=sqrt((PCNoAlg_RISK_scenarioSTD.^2)+(PCPostCMSRiskSTD.^2)-2*sum(((PCNoAlg_RISK_scenario-PCNoAlg_RISK_scenarioAVG).*(PCPostCMSRisk-PCPostCMSRiskAVG)/NumSims),2) );
-%size(tst)
-
-upperROI=PCNewValue_AlgAVGUpd + PCNewValue_AlgSTD ;
-lowerROI=PCNewValue_AlgAVGUpd - PCNewValue_AlgSTD;
-
-RiskValMat=[PCNewValue_AlgAVGUpd];
-RiskValMat2=[PCNoAlg_RISK_scenarioAVG, PCPostCMSRiskAVG];
-
-figure(35);
-h9=plot(1:pp,RiskValMat(1:pp,:));
-hold on;
-h99=fill([1:pp fliplr(1:pp)], [upperROI' fliplr(lowerROI')], [1 .8 .77], 'linestyle', 'none');
-alpha(h99,0.6)
-legend({'Expected Value of Applied CMS','Standard Deviation'},'location','northwest');
-xlabel('Minutes')
-ylabel('Cost Risk (in Dollars)');
-xlim([0 NumParts3]);
-ylim([-200 1200]);
-title('Cost Benefit of CMS to Asset')
-hold off;
-
-
-figure(36);
-plot(1:pp,RiskValMat2(1:pp,:));
-hold on;
-h7=fill([1:pp fliplr(1:pp)],[PCNoAlg_RISK_scenarioUpper' fliplr(PCNoAlg_RISK_scenarioLower')], [.7 .8 1],...
-    [1:pp fliplr(1:pp)], [upperPCPostCMSRiskAVGSTD' fliplr(lowerPCPostCMSRiskAVGSTD')], [1 .8 .7], 'linestyle', 'none');
-alpha(h7,0.3)
-
-legend({'Baseline Risk (Without CMS)','Expected Risk With CMS','Standard Deviation for Baseline (Without CMS)','Standard Deviation for CMS Risk'},'location','northwest');
-title('Asset Risks');
-xlabel('Minutes')
-ylabel('Cost Risk (in Dollars)');
-xlim([0 NumParts3]);
-ylim([-200 1200]);
-hold off;
-
-figure(37);
-plot(1:pp,[PCNoAlg_RISK_scenarioAVG(1:pp), NoAlgoRiskCxCompAVG(1:pp), aX(2,end)*NoAlgoRiskCxCompAVG(1:pp)]);
-hold on;
-%hf1=fill([1:pp fliplr(1:pp)],[PCNoAlg_RISK_scenarioUpper' fliplr(PCNoAlg_RISK_scenarioLower')], [.7 .8 1], 'linestyle', 'none');
-%alpha(hf1,0.3)
-
-legend('Total Asset (All Machines Considered)','One Machine (Sum of Failure Mode Risks)', 'Failure Mode Risk For One Machine','location','northwest');
-title('Aggregated Cost Risks');
-xlabel('Minutes')
-ylabel('Cost Risk (in Dollars)');
-xlim([0 NumParts3]);
-ylim([-200 1200]);
-hold off;
-
-
-
-
-
-ROItotal=cumtrapz(PCNewValue_AlgAVGUpd);
-lowerROItotal=cumtrapz(lowerROI);
-upperROItotal=cumtrapz(upperROI);
-
-ROItotal=ROItotal(end)
-MAE=mean(abs(SystemRisk'-PCNoAlg_RISK_scenarioAVG))
-MC_Uncertainty=0;
-% monte carlo analysis, the true expected value uncertainty is std/sqrt(#runs)
-
-%Average Confusion Matrix Occurrence Per Simulation
-tpOccurr=sum(mean(tpProdCont,2))
-fpOccurr=mean(mean(fpProdCont,2))
-fnOccurr=mean(mean(fnProdCont,2))
-tnOccurr=mean(mean(tnProdCont,2))
-
-tprOccurr=tpOccurr/(tpOccurr+fnOccurr)
-fprOccurr=fpOccurr/(fpOccurr+tnOccurr)
-fnrOccurr=1-tprOccurr
-
-%Weighted average cost of a tp,fp,fn, without taking into account the
-%failure distributions of the machines (only the distribution of their
-%availability numbers)
-tpAvgCost=tpCoeff*0.2*sum(aX(:,pp).*CostCxFun(:,pp))+...
-    tpCoeff*0.5*sum(aZ(:,pp).*CostBzFun(:,pp))+tpCoeff*0.3*sum(aY(:,pp).*CostAyFun(:,pp))
-fpAvgCost=CostCheckAy*.3+CostCheckBz*.5+CostCheckCx*.2
-fnAvgCost=fnCoeff*sum(aY(:,pp).*CostAyFun(:,pp))*.3+...
-    fnCoeff*sum(aZ(:,pp).*CostBzFun(:,pp))*.5+fnCoeff*sum(aX(:,pp).*CostCxFun(:,pp))*.2
-
-
-tpOccurr*tpAvgCost+sum(mean(fpProdCont,2))*fpAvgCost+...
-    sum(mean(fnProdCont,2))*fnAvgCost
-%Should be close but not the same because I didn't take into account
-%distribution of failures into tpAvgCost, fpAvgCost, fnAvgCost:
-PostCMSAggRisk=cumtrapz(PCPostCMSRiskAVG);PostCMSAggRisk(end)
-
-% FP cost * # of Parts * avg # of FP at a single point (or part in time) +
-% TP cost *  # of TP for all parts 
-% FN cost * # of Parts * avg # of FN at a single point (or part in time)
-fpAvgCost*NumParts3*fprOccurr*(fpOccurr+tnOccurr)+tpAvgCost*tprOccurr*(fnOccurr+tpOccurr)...
-    + fnAvgCost*NumParts3*fnrOccurr*(fnOccurr+tpOccurr)
-
-
-
-
-
-
 %% =============== Part 3: Simulation & Visualization  ================
 
 
-BadSet3=[1 2 9];
-DegradeStart3=[648 1100 2250]; %%%%%%%%%%%WATCH OUT FOR THIS THING
-
-
-%close all;
 load('ExperimentSet.mat');
 
 allExpNums=arrayfun(@(x) x.Input.ExpNum,Experiment);
@@ -1104,7 +647,6 @@ ExpNum=floor(allExpNums+1);
 
  % Simulator ID (adds to number of structures in ExperimentSet.mat
 SimNum=numel(Experiment)+1;
-
 
 % Manufacturing System Simulator
 [Exp3]=FunMfgSimulator_v02(UniquePaths, NumParts3, ExpNum, ...
@@ -1117,23 +659,6 @@ SimNum=numel(Experiment)+1;
 
  % Generate Visualizations for the Simulator
  FunMakePlots_v02(Exp3.Output,3);
-
-  %% Different visualization for Figure 16 (horizontal instead of vertical)
-PQCI=Exp3.Output.PQCI;
-ProdContThresh=Exp3.Output.ProdContThresh;
-figure(40);
-bar(PQCI)
-ylim([-0.8 0.8]);
-hold on;
-yline(ProdContThresh);
-hold off;
-ylabel('Machine #')
-xlabel({'Normalized Production'
-    sprintf('Contribution to Bad Parts')});
-legend('Part Quality Contribution Indicator','Bad Contributor Evaluation Threshold','location','northwest');
-
-%% =============== Figure out which of the following parts I still need  ================
-
 
 %% =============== Part 4: Risk Eval: Genetic Algorithm  ================
 

@@ -1,5 +1,5 @@
 %Wiebull Plots
-%clc;clear
+
 MTTF = [6000 3500 2500]
 shape = [5.6 5.0 2.9]
 stoptime = 2700;

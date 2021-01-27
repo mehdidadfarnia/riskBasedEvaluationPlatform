@@ -12,6 +12,7 @@
 %  This script calls on the following functions:
 %       FunMfgSimulator_v02.m (which in turn calls on FunMeanFilt_v02.m)
 %       FunMakePlots_v02.m
+%       randfixedsum.m (optional)
 
 
 %% ============== Part 1: Initialization & A Lot More ================
@@ -77,7 +78,7 @@ UniquePaths=mat2cell(SelUniquePaths,ones(1,size(SelUniquePaths,1)),size(SelUniqu
 
 
 
-% =============== Part 2: Include Fail Time Probability Distributions  ================
+%% =============== Part 2: Include Fail Time Probability Distributions  ================
 % Example to incorporate probability distributions of machine failure times
 
 % Look for failure times for our 10 machines, with different sets of 
@@ -143,19 +144,24 @@ x=floor(sort(wblrnd(xwblA,xwblB,[1,length(ClassCOpMach)])));
 fx=(xwblB/(xwblA^xwblB)).*(x.^(xwblB-1)).*exp(-((x./xwblA).^(xwblB)));
 % For a more clear shape of the distribution:
 % WeibullShapes=20;
-xShape=floor(sort(wblrnd(xwblA,xwblB,[1,200*length(ClassCOpMach)]))); 
+xShape=floor(sort(wblrnd(xwblA,xwblB,[1,50*length(ClassCOpMach)]))); 
 fxShape=(xwblB/(xwblA^xwblB)).*(xShape.^(xwblB-1)).*exp(-((xShape./xwblA).^(xwblB)));
 
 
 % Plot of the machines by underlying distribution of fail times
-figure(22); plot(xShape,fxShape,'b--')
+figure(22); plot(y,fy,'ro',yShape,fyShape,'r',...
+    z,fz,'bo',zShape,fzShape,'b',...
+    x,fx,'go',xShape,fxShape,'g')
+xlim([0 3*NumParts3])
 hold on;
 xline(NumParts3);
 hold off;
-legend('Weibull Distribution; (Alpha, Beta) = (3800, 4)',...
-    'Production Stop','location','northeast')
-title({'Estimated Life Distribution',...
-    'for Laser Engraving Machine'})
+legend('Class A: Exponential Machines','Exponential Distribution; (Theta) = (4800)',...
+    'Class B: Weibull-1 Machines','Weibull-1 Distribution; (Alpha, Beta) = (16000, 1.3)',...
+    'Class C: Weibull-2 Machines','Weibull-2 Distribution; (Alpha, Beta) = (3800, 4)',...
+    'Simulation Cutoff','location','northeast')
+title({'Estimated Life Distributions',...
+    'for Different Classes of Machines'})
 xlabel('Time (Minutes)')
 
 
@@ -189,7 +195,6 @@ numFailModesClassCx=3;
 minaX=0;
 maxaX=1;
 aX=[0.2*ones(1,length(tiempo)); 0.5*ones(1,length(tiempo));0.3*ones(1,length(tiempo))];
-
 %aX=randfixedsum(numFailModesClassCx,length(tiempo),1,minaX,maxaX); %Using a function from Mathworks File Exchange
 
 
@@ -199,6 +204,7 @@ title({'Instantaneous Failure Rates & Their Failure Mode Ratios',...
     'for Laser Engraving Machine'})
 xlabel('Time (Minutes)');
 hold on
+
 for kk=1:numFailModesClassCx
     clr3=kk/numFailModesClassCx;
     plot(tiempo,mean(aX(kk,:)).*hX,'LineStyle',':','Color',[0 0 clr3],'DisplayName',strcat('Failure Mode Ratio ', num2str(kk)));
@@ -311,7 +317,7 @@ figure(28);
 title('Individual Failure Mode Risk')
 ylabel('Cost Risk (in Thousands of Dollars)');
 xlim([0 NumParts3]);
-xlabel('Minutes');
+xlabel('Time (Minutes)');
 
 hold on
 CostAyFun=CostsAy.*ones(numFailModesClassAy,length(tiempo));
@@ -341,7 +347,7 @@ ComponentRiskCx=sum(RiskCxFun,1);
 
 figure(29);
 hold on;
-plot(tiempo,length(ClassCOpMach)*ComponentRiskCx,'LineStyle','--','Color',[0 0 1],'DisplayName', ...
+plot(tiempo, ComponentRiskCx,'LineStyle','--','Color',[0 0 1],'DisplayName', ...
     'One Machine (Sum of Failure Mode Risks)');
 legend('location','northwest')
 title('Aggregated Cost Risks')
@@ -357,9 +363,8 @@ SystemRisk=length(ClassAOpMach)*ComponentRiskAy + length(ClassBOpMach)*Component
 %   SystemRisk = 1*ComponentRiskAy + 2*ComponentRiskBz + 1*ComponentRiskCx;
 plot(tiempo,SystemRisk,'LineStyle','--','Color',[1 0 0],'DisplayName', ...
     'Total Asset (All Machines Considered)');
-% hold on;
-% title('Total System Risk (all the machines)');
 %legend('location','east')
+
 NodePresence=nan(1,NumNodes);
 for ii=1:NumNodes
      NodePresence(1,ii)=length(find(horzcat(UniquePaths{:})==ii));
@@ -382,9 +387,6 @@ c=zeros(1,10);c(ClassCOpMach)=1;
 % plot(tiempo,WeightedSystemRisk,'LineStyle',':','Color',[0.25 0.25 0.25]);
 % legend('System (Scenario) Risk','Weighted System Risk','location','northwest');
 hold off;
-
-
-
 
 PathsMap = zeros(length(UniquePaths),NumNodes); 
 for upi = 1:length(UniquePaths)
@@ -432,7 +434,6 @@ allTimesTemp(allTimesTemp<1)=randi(50,size(allTimesTemp(allTimesTemp<1)));
 yAll=allTimesTemp(:,1:length(ClassAOpMach));
 zAll=allTimesTemp(:,1+length(ClassAOpMach):length(ClassAOpMach)+length(ClassBOpMach));
 xAll=allTimesTemp(:,1+length(ClassAOpMach)+length(ClassBOpMach):end);
-
 
 
 % ============================
@@ -966,7 +967,7 @@ SimNum=numel(Experiment)+1;
  FunMakePlots_v02(Exp3.Output,3);
  
  
- %%
+ %% Different visualization for Figure 16 (horizontal instead of vertical)
 PQCI=Exp3.Output.PQCI;
 ProdContThresh=Exp3.Output.ProdContThresh;
 figure(40);
